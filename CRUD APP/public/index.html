@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Notes CRUD</title>
+  <style>
+    body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 16px;color:#111}
+    header{display:flex;justify-content:center;align-items:center;margin-bottom:12px;flex-direction: column;}
+    input,textarea{width:100%;padding:8px;margin:6px 0;border:1px solid #ddd;border-radius:6px}
+    button{padding:8px 12px;border-radius:6px;border:0;background:#111;color:#fff;cursor:pointer}
+    .note{border:1px solid #eee;padding:12px;border-radius:8px;margin:8px 0}
+    .row{display:flex;gap:8px;align-items:center}
+   
+  
+  </style>
+</head>
+<body>
+ <header style="text-align: center;">
+  <h1>Notes</h1> </br>
+  <small style="font-weight: bold;">Performing CRUD Operations</small>
+</header>
+
+
+  <section id="form">
+    <input id="title" placeholder="Title" />
+    <textarea id="body" rows="4" placeholder="Body (optional)"></textarea>
+    <div class="row">
+      <button id="saveBtn">Create</button>
+      <button id="clearBtn" type="button">Clear</button>
+    </div>
+  </section>
+
+  <hr/>
+  <section id="list"></section>
+
+  <script>
+    const api = '/api/notes';
+    let editingId = null;
+
+    async function fetchNotes(){
+      const res = await fetch(api);
+      const data = await res.json();
+      renderList(data);
+    }
+
+    function renderList(notes){
+      const container = document.getElementById('list');
+      if (!notes.length) { container.innerHTML = '<p>No notes yet.</p>'; return; }
+      container.innerHTML = notes.map(n=>`
+        <div class="note">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${escapeHtml(n.title)}</strong>
+            <div>
+              <button data-id="${n.id}" class="edit">Edit</button>
+              <button data-id="${n.id}" class="del">Delete</button>
+            </div>
+          </div>
+          <div style="margin-top:8px;white-space:pre-wrap">${escapeHtml(n.body||'')}</div>
+          <small>Updated: ${new Date(n.updated_at).toLocaleString()}</small>
+        </div>
+      `).join('');
+      container.querySelectorAll('.edit').forEach(b => b.onclick = onEdit);
+      container.querySelectorAll('.del').forEach(b => b.onclick = onDelete);
+    }
+
+    function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+    async function onEdit(e){
+      const id = e.currentTarget.dataset.id;
+      const res = await fetch(api + '/' + id);
+      if (!res.ok) return alert('Failed to load note');
+      const note = await res.json();
+      document.getElementById('title').value = note.title;
+      document.getElementById('body').value = note.body || '';
+      editingId = id;
+      document.getElementById('saveBtn').textContent = 'Update';
+    }
+
+    async function onDelete(e){
+      if (!confirm('Delete this note?')) return;
+      const id = e.currentTarget.dataset.id;
+      const res = await fetch(api + '/' + id, { method: 'DELETE' });
+      if (res.status === 204) fetchNotes();
+      else alert('Delete failed');
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const title = document.getElementById('title').value.trim();
+      const body = document.getElementById('body').value;
+      if (!title) return alert('Title required');
+      if (editingId) {
+        const res = await fetch(api + '/' + editingId, {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ title, body })
+        });
+        if (!res.ok) return alert('Update failed');
+        editingId = null;
+        document.getElementById('saveBtn').textContent = 'Create';
+      } else {
+        const res = await fetch(api, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ title, body })
+        });
+        if (!res.ok) return alert('Create failed');
+      }
+      document.getElementById('title').value = '';
+      document.getElementById('body').value = '';
+      fetchNotes();
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      editingId = null;
+      document.getElementById('title').value = '';
+      document.getElementById('body').value = '';
+      document.getElementById('saveBtn').textContent = 'Create';
+    });
+
+    fetchNotes();
+  </script>
+</body>
+</html>
